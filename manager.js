@@ -75,21 +75,31 @@ client.on('message_create', async (msg) => {
     // Default system user
     const userObj = getUser('system'); 
 
-    // --- COMMANDS ---
+    // --- COMMANDS (Only for owner) ---
     const cmd = body.trim().toLowerCase();
-    if (cmd.includes('!afk')) {
-        userObj.isAfk = true;
-        console.log(">> AFK Mode Activated");
-        return msg.reply('🔇 **AFK Mode ON**. Bot bakal bales chat otomatis.');
-    }
-    if (cmd.includes('!back')) {
-        userObj.isAfk = false;
-        userObj.interactedUsers.clear();
-        console.log(">> AFK Mode Deactivated");
-        return msg.reply('🔊 **AFK Mode OFF**. Bot berhenti bales chat.');
+    if (msg.fromMe) {
+        if (cmd === '!afk') {
+            userObj.isAfk = true;
+            console.log(">> AFK Mode Activated");
+            return msg.reply('🔇 **AFK Mode ON**. Bot bakal bales chat otomatis.');
+        }
+        if (cmd === '!back') {
+            userObj.isAfk = false;
+            userObj.interactedUsers.clear();
+            console.log(">> AFK Mode Deactivated");
+            return msg.reply('🔊 **AFK Mode OFF**. Bot berhenti bales chat.');
+        }
     }
 
-    if (!userObj.isAfk || isGroup || msg.fromMe) return;
+    // --- DECISION LOGIC (Ignore if...) ---
+    if (!userObj.isAfk) return; 
+    if (isGroup) {
+        console.log(`[Userbot] Ignored message from Group: ${senderId}`);
+        return;
+    }
+    if (msg.fromMe) return; 
+    
+    console.log(`[Userbot] Decision: Processing incoming chat from ${senderId}`);
 
     // --- FILTERING ---
     // 1. Media check
