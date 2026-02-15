@@ -55,12 +55,20 @@ client.on('qr', (qr) => {
     qrcode.generate(qr, {
         small: true
     });
+    
+    // Fallback buat console yang berantakan (seperti Koyeb)
+    const qrLink = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`;
+    console.log(`\n[Link Alternatif] Kalau QR di atas berantakan, buka link ini buat scan:`);
+    console.log(qrLink);
 });
 
 client.on('ready', async () => {
     console.log('✅ WhatsApp Bot Ready!');
-    // Sync session to Supabase
-    await pushSession();
+    // Kasih jeda dikit biar file session bener-bener ketulis kelar
+    console.log('[System] Menunggu 5 detik sebelum sync ke Supabase...');
+    setTimeout(async () => {
+        await pushSession();
+    }, 5000);
 });
 
 // In-Memory Storage
