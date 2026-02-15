@@ -51,55 +51,75 @@ const decodeJid = (jid) => {
 };
 
 // --- Connection Logic ---
+let isConnecting = false;
+
 async function startBot() {
+    if (isConnecting) return;
+    isConnecting = true;
+
     console.log("[System] Initializing Baileys Bot (ESM Mode)...");
     
-    // 1. Pull Session from Supabase
-    await pullSession();
+    try {
+        // 1. Pull Session from Supabase
+        await pullSession();
 
-    const { state, saveCreds } = await useMultiFileAuthState(SESSION_PATH);
-    const { version } = await fetchLatestBaileysVersion();
+        const { state, saveCreds } = await useMultiFileAuthState(SESSION_PATH);
+        const { version } = await fetchLatestBaileysVersion();
 
-    const sock = makeWASocket({
-        version,
-        logger: pino({ level: 'silent' }),
-        printQRInTerminal: false,
-        auth: state,
-        browser: [process.env.OWNER_NAME || "𝚍𝚞𝚖𝚙𝚒𝚢𝚎𝚢", "Safari", "3.0"],
-        markOnlineOnConnect: true
-    });
+        const sock = makeWASocket({
+            version,
+            logger: pino({ level: 'silent' }),
+            printQRInTerminal: false,
+            auth: state,
+            browser: [process.env.OWNER_NAME || "𝚍𝚞𝚖𝚙𝚒𝚢𝚎𝚢", "Safari", "3.0"],
+            markOnlineOnConnect: true,
+            connectTimeoutMs: 60000,
+            defaultQueryTimeoutMs: 0
+        });
 
-    sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
 
-        if (qr) {
-            console.log("[System] Scan QR Code required...");
-            qrcode.generate(qr, { small: true });
-            const qrLink = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`;
-            console.log(`[Link Alternatif] ${qrLink}`);
-        }
-
-        if (connection === 'close') {
-            const statusCode = (lastDisconnect?.error)?.output?.statusCode;
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-            console.log('[System] Connection closed. Status:', statusCode, '| Reason:', lastDisconnect?.error?.message, '| Reconnecting:', shouldReconnect);
-            
-            if (statusCode === DisconnectReason.loggedOut) {
-                console.log("[System] Logged out. Cleaning session...");
-                if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
+            if (qr) {
+                console.log("[System] Scan QR Code required...");
+                qrcode.generate(qr, { small: true });
+                const qrLink = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`;
+                console.log(`[Link Alternatif] ${qrLink}`);
             }
 
-            if (shouldReconnect) startBot();
-        } else if (connection === 'open') {
-            console.log('🚀 WhatsApp Bot is Ready! (Baileys Mode)');
-            // Sync to Supabase after 10s of being ready
-            setTimeout(async () => {
-                await pushSession();
-            }, 10000);
-        }
-    });
+            if (connection === 'close') {
+                isConnecting = false;
+                const error = lastDisconnect?.error;
+                const statusCode = error?.output?.statusCode || error?.statusCode;
+                
+                // Reconnect on everything except Logout (401)
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                
+                console.log(`[System] Connection Closed!`);
+                console.log(`[System] - Status: ${statusCode}`);
+                console.log(`[System] - Message: ${error?.message}`);
+                console.log(`[System] - Reconnect: ${shouldReconnect}`);
 
-    sock.ev.on('creds.update', saveCreds);
+                if (statusCode === DisconnectReason.loggedOut) {
+                    console.log("[System] Device Logged Out. Clearing session...");
+                    if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
+                }
+
+                if (shouldReconnect) {
+                    console.log("[System] Reconnecting in 5 seconds...");
+                    setTimeout(() => startBot(), 5000);
+                }
+            } else if (connection === 'open') {
+                isConnecting = false;
+                console.log('🚀 WhatsApp Bot is Ready! (Baileys Mode)');
+                // Sync to Supabase after 10s of being ready
+                setTimeout(async () => {
+                    await pushSession();
+                }, 10000);
+            }
+        });
+
+        sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
@@ -161,7 +181,12 @@ async function startBot() {
             console.error(`[AI Error]:`, e.message);
             if (e.message?.includes('429')) errorSilence.set(senderNumber, now + 60000);
         }
-    });
+        });
+    } catch (e) {
+        isConnecting = false;
+        console.error("[System] startBot Fatal Error:", e.message);
+        setTimeout(() => startBot(), 10000);
+    }
 }
 
 // Start bot
