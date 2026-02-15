@@ -59,11 +59,22 @@ const client = new Client({
             '--mute-audio',
             '--hide-scrollbars',
             '--disable-features=IsolateOrigins,site-per-process',
-            '--js-flags=--max-old-space-size=256',
-            '--single-process' // Kembali gunakan ini buat low-RAM container
+            '--js-flags=--max-old-space-size=128', // Turunin ke 128MB biar sisa RAM buat OS & browser
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-breakpad',
+            '--disable-component-extensions-with-background-pages',
+            '--disable-ipc-flooding-protection',
+            '--disable-renderer-backgrounding',
+            '--disable-web-security',
+            '--enable-features=NetworkService,NetworkServiceInProcess'
         ],
-        headless: 'new', // Lebih stabil di versi baru
-        timeout: 0 // Biar gak timeout dari sisi puppeteer pas loading berat
+        headless: true, // Legacy headless lebih irit RAM di beberapa env
+        timeout: 0
+    },
+    webCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
     },
     authTimeoutMs: 0,
     qrMaxRetries: 5
