@@ -13,6 +13,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8000;
+const SESSION_PATH = './.wwebjs_auth';
 
 // --- Process Monitoring ---
 process.on('uncaughtException', (err) => console.error('CRASH:', err));
