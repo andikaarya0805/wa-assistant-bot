@@ -58,6 +58,7 @@ async function startBot() {
     isConnecting = true;
 
     console.log("[System] Initializing Baileys Bot (ESM Mode)...");
+    let hasQR = false;
     
     try {
         // 1. Pull Session from Supabase
@@ -80,7 +81,8 @@ async function startBot() {
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
 
-            if (qr) {
+            if (qr && !hasQR) {
+                hasQR = true;
                 console.log("[System] Scan QR Code required...");
                 qrcode.generate(qr, { small: true });
                 const qrLink = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`;
