@@ -34,10 +34,10 @@ export async function pullSession() {
     try {
         const { data, error } = await supabase.storage
             .from(BUCKET_NAME)
-            .download('session.zip');
+            .download('baileys_session.zip');
 
         if (error) {
-            console.log("[Supabase] ⚠️ No session found in storage or error:", error.message);
+            console.log("[Supabase] ⚠️ No Baileys session found. Starting fresh.");
             return false;
         }
 
@@ -47,7 +47,7 @@ export async function pullSession() {
         if (!fs.existsSync(SESSION_PATH)) fs.mkdirSync(SESSION_PATH, { recursive: true });
         
         zip.extractAllTo(SESSION_PATH, true);
-        console.log("[Supabase] ✅ Session pulled and extracted successfully.");
+        console.log("[Supabase] ✅ Baileys session pulled successfully.");
         return true;
     } catch (e) {
         console.error("[Supabase] ❌ Error in pullSession:", e.message);
@@ -78,7 +78,7 @@ export async function pushSession() {
 
         const { error } = await supabase.storage
             .from(BUCKET_NAME)
-            .upload('session.zip', buffer, {
+            .upload('baileys_session.zip', buffer, {
                 upsert: true,
                 contentType: 'application/zip'
             });

@@ -80,8 +80,15 @@ async function startBot() {
         }
 
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('[System] Connection closed. Reason:', lastDisconnect?.error?.message, '| Reconnecting:', shouldReconnect);
+            const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            console.log('[System] Connection closed. Status:', statusCode, '| Reason:', lastDisconnect?.error?.message, '| Reconnecting:', shouldReconnect);
+            
+            if (statusCode === DisconnectReason.loggedOut) {
+                console.log("[System] Logged out. Cleaning session...");
+                if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
+            }
+
             if (shouldReconnect) startBot();
         } else if (connection === 'open') {
             console.log('🚀 WhatsApp Bot is Ready! (Baileys Mode)');
