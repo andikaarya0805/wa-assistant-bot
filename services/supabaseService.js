@@ -17,9 +17,13 @@ async function ensureBucket() {
     try {
         const { data, error } = await supabase.storage.getBucket(BUCKET_NAME);
         if (error) {
-            console.log(`[Supabase] Bucket '${BUCKET_NAME}' issue: ${error.message}`);
-            console.log(`[Supabase] Mencoba membuat bucket baru...`);
-            await supabase.storage.createBucket(BUCKET_NAME, { public: false });
+            // Ignore specific errors that don't stop upload
+            if (error.message.includes("not found") || error.message.includes("row-level security")) {
+                // Try creating just in case, but fail silently if it exists
+                await supabase.storage.createBucket(BUCKET_NAME, { public: false }).catch(() => {});
+            } else {
+                console.log(`[Supabase] Bucket '${BUCKET_NAME}' check: ${error.message}`);
+            }
         }
     } catch (e) {
         // Silent error
