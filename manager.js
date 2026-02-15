@@ -58,14 +58,15 @@ const client = new Client({
             '--disable-default-apps',
             '--mute-audio',
             '--hide-scrollbars',
-            '--disable-features=IsolateOrigins,site-per-process', // Hemat RAM signifikan
-            '--js-flags=--max-old-space-size=256' // Tanpa kutip ganda biar aman di shell
+            '--disable-features=IsolateOrigins,site-per-process',
+            '--js-flags=--max-old-space-size=256',
+            '--single-process' // Kembali gunakan ini buat low-RAM container
         ],
-        headless: true,
-        timeout: 90000 // Naikkan ke 90 detik
+        headless: 'new', // Lebih stabil di versi baru
+        timeout: 0 // Biar gak timeout dari sisi puppeteer pas loading berat
     },
-    authTimeoutMs: 90000,
-    qrMaxRetries: 10
+    authTimeoutMs: 0,
+    qrMaxRetries: 5
 });
 
 // Event handling buat deteksi crash
@@ -242,17 +243,28 @@ async function processQueue(userObj) {
 }
 
 (async () => {
-    try {
-        console.log("[System] Initializing bot...");
-        // 1. Ambil session dari Supabase dulu
-        await pullSession();
+    let retries = 3;
+    while (retries > 0) {
+        try {
+            console.log(`[System] Initializing bot (Retries left: ${retries})...`);
+            // 1. Ambil session dari Supabase dulu
+            await pullSession();
 
-        // 2. Start WhatsApp Client
-        console.log("[System] Launching browser...");
-        await client.initialize();
-        console.log("[System] Client initialize called.");
-    } catch (err) {
-        console.error("[Fatal] Init Error:", err);
+            // 2. Start WhatsApp Client
+            console.log("[System] Launching browser...");
+            await client.initialize();
+            console.log("[System] Client initialize called.");
+            break; // Sukses, keluar dari loop
+        } catch (err) {
+            retries--;
+            console.error(`[Fatal] Init Error (Remaining: ${retries}):`, err.message);
+            if (retries > 0) {
+                console.log("[System] Retrying in 10 seconds...");
+                await new Promise(res => setTimeout(res, 10000));
+            } else {
+                console.error("[Fatal] All retries failed. Bot stopping.");
+            }
+        }
     }
 })();
 
