@@ -102,10 +102,16 @@ async function startBot() {
                 console.log(`[System] - Message: ${error?.message}`);
                 console.log(`[System] - Reconnect: ${shouldReconnect}`);
 
-                if (statusCode === DisconnectReason.loggedOut) {
-                    console.log("[System] Device Logged Out. Clearing session...");
+                // Handle Logout (401) or Conflict (440) or Restart Required (515)
+                if (
+                    statusCode === DisconnectReason.loggedOut || 
+                    statusCode === 440 || 
+                    statusCode === 515
+                ) {
+                    console.log(`[System] Critical Error (${statusCode}). Clearing session to force fresh login...`);
                     if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
                     await deleteSession(); // Clear from Supabase too
+                    shouldReconnect = true; // Force reconnect after clearing
                 }
 
                 if (shouldReconnect) {
