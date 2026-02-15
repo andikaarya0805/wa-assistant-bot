@@ -122,13 +122,13 @@ client.on('message_create', async (msg) => {
 
     // 1. Group check
     if (isGroup && !isMentioned) {
-        console.log(`[Userbot] Ignored message from Group (not mentioned): ${senderId}`);
+        console.log(`[Userbot] 🛡️ Ignored Group Chat (No Mention) from ${senderId}`);
         return;
     }
 
     // 2. Status/Broadcast check
     if (isStatus) {
-        console.log(`[Userbot] Ignored status update from ${senderId}`);
+        console.log(`[Userbot] 🛡️ Ignored Status Update from ${senderId}`);
         return;
     }
 
