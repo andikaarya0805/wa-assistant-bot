@@ -1,11 +1,12 @@
+const Baileys = require('@whiskeysockets/baileys');
+const makeWASocket = Baileys.default || Baileys;
 const { 
-    default: makeWASocket, 
     useMultiFileAuthState, 
     DisconnectReason, 
     fetchLatestBaileysVersion, 
     makeInMemoryStore, 
     jidDecode 
-} = require('@whiskeysockets/baileys');
+} = Baileys;
 const pino = require('pino');
 const express = require('express');
 const qrcode = require('qrcode-terminal');
