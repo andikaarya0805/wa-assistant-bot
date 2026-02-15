@@ -53,9 +53,18 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--disable-gpu'
-        ]
-    }
+            '--disable-gpu',
+            '--disable-extensions',
+            '--disable-default-apps',
+            '--mute-audio',
+            '--hide-scrollbars',
+            '--js-flags="--max-old-space-size=256"' // Batasi RAM JS biar gak crash di Koyeb
+        ],
+        headless: true, // Pastikan true buat server
+        timeout: 60000 // Kasih waktu lebih lama (1 menit)
+    },
+    authTimeoutMs: 60000, // Timeout auth lebih lama
+    qrMaxRetries: 5
 });
 
 // Event handling buat deteksi crash
