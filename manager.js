@@ -46,7 +46,16 @@ const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         executablePath: browserPath || undefined,
-        args: ['--no-sandbox']
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process', // Ini krusial buat hemat RAM di Koyeb
+            '--disable-gpu'
+        ]
     }
 });
 
