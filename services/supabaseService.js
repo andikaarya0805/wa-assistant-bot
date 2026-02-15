@@ -75,15 +75,15 @@ async function pushSession() {
         
         fs.mkdirSync(TEMP_SYNC_PATH, { recursive: true });
         
-        // List folder yang mau di-skip total (Skip cache & media, tapi JANGAN skip IndexedDB/Local Storage)
+        // List folder yang benar-benar boleh dibuang (Cache & Junk)
+        // IndexedDB kita skip karena kegedean (125MB+), kita andelin Local Storage & Cookies
         const SKIP_FOLDERS = [
-            'Cache', 'Code Cache', 'GPUCache', 'Service Worker', 
-            'blob_storage', 'databases', 'VideoDecodeStats', 
-            'GrShaderCache', 'DawnCache', 'Extension State',
-            'File System', 'Session Storage', 'Previews',
-            'WebStorage', 'Sync Data', 'Sessions', 'Crashpad',
+            'Cache', 'Code Cache', 'GPUCache', 'blob_storage', 
+            'VideoDecodeStats', 'GrShaderCache', 'DawnCache', 
+            'Extension State', 'File System', 'Session Storage', 
+            'Previews', 'Sync Data', 'Crashpad', 'IndexedDB',
             'OptimizationGuidePredictionModels', 'CacheStorage',
-            'Storage', 'Persistent', 'Local Extension Settings',
+            'Persistent', 'Local Extension Settings',
             'MediaFoundationWidevineUtils', 'hyphen-data'
         ];
 
@@ -93,25 +93,23 @@ async function pushSession() {
             for (const file of files) {
                 const srcFile = path.join(src, file);
                 const destFile = path.join(dest, file);
-                
-                // Skip folders in list
+                const name = file.toLowerCase();
+
+                // 1. Skip if in global skip list
                 if (SKIP_FOLDERS.includes(file)) continue;
                 
-                // Skip generic heavy patterns (specifically cache and logs)
-                const name = file.toLowerCase();
-                if (name.includes('cache') && !name.includes('storage')) continue; 
-                if (name === 'logs' || name.includes('tmp')) continue;
+                // 2. Skip anything with "cache" in name if it's not a storage folder
+                if (name.includes('cache') && !name.includes('storage') && !name.includes('db')) continue;
 
                 const stat = fs.statSync(srcFile);
                 if (stat.isDirectory()) {
                     fs.mkdirSync(destFile, { recursive: true });
                     copyFiles(srcFile, destFile);
                 } else {
-                    // JANGAN skip .ldb karena itu data session di IndexedDB
-                    const FORBIDDEN_EXT = ['.log', '.blob', '.tmp', '.bak', '.old', '.db-journal'];
-                    if (FORBIDDEN_EXT.some(ext => name.endsWith(ext)) || name === 'log' || name === 'log.old') {
-                        continue;
-                    }
+                    // 3. Skip heavy browser junk files
+                    // JANGAN skip .log atau .ldb buat folder sisa (Local Storage dkk) karena itu nyimpen kunci login
+                    const JUNK_EXT = ['.tmp', '.bak', '.old', '.db-journal', '.blob'];
+                    if (JUNK_EXT.some(ext => name.endsWith(ext))) continue;
 
                     try {
                         fs.copyFileSync(srcFile, destFile);
@@ -136,9 +134,11 @@ async function pushSession() {
 
         if (error) {
             console.error("[Supabase] ❌ Storage Error Details:", error);
+            console.log("[Supabase] 💡 Tip: Pastikan pakai 'service_role' key di .env biar gak kena blokir RLS.");
             throw error;
         }
-        console.log("[Supabase] ✅ Session uploaded to Storage successfully.");
+        const now = new Date().toLocaleTimeString();
+        console.log(`[Supabase] ✅ Session uploaded (${now}) successfully.`);
         
         fs.rmSync(TEMP_SYNC_PATH, { recursive: true, force: true });
 
