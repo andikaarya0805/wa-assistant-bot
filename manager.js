@@ -12,8 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import NodeCache from 'node-cache';
-const msgRetryCounterCache = new NodeCache();
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,8 +75,7 @@ async function startBot() {
             browser: [process.env.OWNER_NAME || "𝚍𝚞𝚖𝚙𝚒𝚢𝚎𝚢", "Chrome", "20.0.04"],
             markOnlineOnConnect: true,
             connectTimeoutMs: 60000,
-            defaultQueryTimeoutMs: 0,
-            msgRetryCounterCache
+            defaultQueryTimeoutMs: 0
         });
 
         sock.ev.on('connection.update', async (update) => {
@@ -97,23 +95,17 @@ async function startBot() {
                 const statusCode = error?.output?.statusCode || error?.statusCode;
                 
                 // Reconnect on everything except Logout (401)
-                let shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                 
                 console.log(`[System] Connection Closed!`);
                 console.log(`[System] - Status: ${statusCode}`);
                 console.log(`[System] - Message: ${error?.message}`);
                 console.log(`[System] - Reconnect: ${shouldReconnect}`);
 
-                // Handle Logout (401) or Conflict (440) or Restart Required (515)
-                if (
-                    statusCode === DisconnectReason.loggedOut || 
-                    statusCode === 440 || 
-                    statusCode === 515
-                ) {
-                    console.log(`[System] Critical Error (${statusCode}). Clearing session to force fresh login...`);
+                if (statusCode === DisconnectReason.loggedOut) {
+                    console.log("[System] Device Logged Out. Clearing session...");
                     if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
                     await deleteSession(); // Clear from Supabase too
-                    shouldReconnect = true; // Force reconnect after clearing
                 }
 
                 if (shouldReconnect) {
