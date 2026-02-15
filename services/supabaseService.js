@@ -95,3 +95,23 @@ export async function pushSession() {
         console.error("[Supabase] ❌ Error pushing session:", e.message);
     }
 }
+
+/**
+ * Delete session from Supabase Storage
+ */
+export async function deleteSession() {
+    console.log("[Supabase] Deleting session from storage...");
+    try {
+        const { error } = await supabase.storage
+            .from(BUCKET_NAME)
+            .remove(['session.zip']);
+
+        if (error) {
+            console.error("[Supabase] ❌ Error deleting session:", error.message);
+        } else {
+            console.log("[Supabase] ✅ Session deleted successfully.");
+        }
+    } catch (e) {
+        console.error("[Supabase] ❌ Error in deleteSession:", e.message);
+    }
+}

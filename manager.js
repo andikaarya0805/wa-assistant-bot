@@ -18,7 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import openRouterService from './services/openRouterService.js';
-import { pullSession, pushSession } from './services/supabaseService.js';
+import { pullSession, pushSession, deleteSession } from './services/supabaseService.js';
 const aiService = openRouterService;
 
 const app = express();
@@ -103,6 +103,7 @@ async function startBot() {
                 if (statusCode === DisconnectReason.loggedOut) {
                     console.log("[System] Device Logged Out. Clearing session...");
                     if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
+                    await deleteSession(); // Clear from Supabase too
                 }
 
                 if (shouldReconnect) {
