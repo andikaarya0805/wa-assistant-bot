@@ -53,10 +53,18 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process', // Ini krusial buat hemat RAM di Koyeb
             '--disable-gpu'
         ]
     }
+});
+
+// Event handling buat deteksi crash
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Fatal] Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('[Fatal] Uncaught Exception:', err);
 });
 
 client.on('qr', (qr) => {
