@@ -1,11 +1,9 @@
-import Baileys from '@whiskeysockets/baileys';
-const { 
-    default: makeWASocket, 
+import makeWASocket, { 
     useMultiFileAuthState, 
     DisconnectReason, 
     fetchLatestBaileysVersion, 
     jidDecode 
-} = Baileys;
+} from '@whiskeysockets/baileys';
 
 import pino from 'pino';
 import express from 'express';
