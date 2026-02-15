@@ -106,9 +106,11 @@ export async function pushSession() {
 export async function deleteSession() {
     console.log("[Supabase] Deleting session from storage...");
     try {
-        const { error } = await supabase.storage
+        const { data, error } = await supabase.storage
             .from(BUCKET_NAME)
             .remove(['session.zip']);
+
+        console.log(`[Supabase] Deletion response:`, data);
 
         if (error) {
             console.error("[Supabase] ❌ Error deleting session:", error.message);
