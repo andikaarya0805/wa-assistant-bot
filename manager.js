@@ -78,24 +78,31 @@ process.on('uncaughtException', (err) => {
 });
 
 client.on('qr', (qr) => {
-    console.log('Scan QR Code ini untuk login WhatsApp:');
-    qrcode.generate(qr, {
-        small: true
-    });
+    console.log('[System] Scanning QR Code required...');
+    qrcode.generate(qr, { small: true });
     
-    // Fallback buat console yang berantakan (seperti Koyeb)
     const qrLink = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`;
-    console.log(`\n[Link Alternatif] Kalau QR di atas berantakan, buka link ini buat scan:`);
-    console.log(qrLink);
+    console.log(`[Link Alternatif] ${qrLink}`);
+});
+
+client.on('authenticated', () => {
+    console.log('✅ WhatsApp Authenticated!');
+});
+
+client.on('auth_failure', (msg) => {
+    console.error('❌ WhatsApp Auth Failure:', msg);
 });
 
 client.on('ready', async () => {
-    console.log('✅ WhatsApp Bot Ready!');
-    // Kasih jeda dikit biar file session bener-bener ketulis kelar
+    console.log('🚀 WhatsApp Bot is Ready!');
     console.log('[System] Menunggu 5 detik sebelum sync ke Supabase...');
     setTimeout(async () => {
         await pushSession();
     }, 5000);
+});
+
+client.on('disconnected', (reason) => {
+    console.log('❌ WhatsApp Disconnected:', reason);
 });
 
 // In-Memory Storage
@@ -235,11 +242,18 @@ async function processQueue(userObj) {
 }
 
 (async () => {
-    // 1. Ambil session dari Supabase dulu
-    await pullSession();
+    try {
+        console.log("[System] Initializing bot...");
+        // 1. Ambil session dari Supabase dulu
+        await pullSession();
 
-    // 2. Start WhatsApp Client
-    client.initialize();
+        // 2. Start WhatsApp Client
+        console.log("[System] Launching browser...");
+        await client.initialize();
+        console.log("[System] Client initialize called.");
+    } catch (err) {
+        console.error("[Fatal] Init Error:", err);
+    }
 })();
 
 app.get('/health', (req, res) => res.json({
