@@ -10,3 +10,6 @@ yarn-error.log*
 .wwebjs_auth/
 .wwebjs_cache/
 .wwebjs_auth_temp/
+
+.venv/
+ngrok.exe

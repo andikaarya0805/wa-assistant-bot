@@ -6,3 +6,5 @@ session.txt
 *.exe
 .git
 .venv
+ngrok.exe
+.wwebjs_auth_temp/
