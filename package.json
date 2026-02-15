@@ -2,6 +2,7 @@
   "name": "wa-gemini-bot",
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "main": "manager.js",
   "scripts": {
     "start": "node manager.js",

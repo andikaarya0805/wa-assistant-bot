@@ -1,8 +1,9 @@
-const { createClient } = require('@supabase/supabase-js');
-const AdmZip = require('adm-zip');
-const fs = require('fs');
-const path = require('path');
-require('dotenv').config();
+import { createClient } from '@supabase/supabase-js';
+import AdmZip from 'adm-zip';
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const supabase = createClient(process.env.DB_URL, process.env.DB_KEY);
 const SESSION_PATH = './baileys_auth';
@@ -28,7 +29,7 @@ async function ensureBucket() {
 /**
  * Download session from Supabase Storage and extract to local folder
  */
-async function pullSession() {
+export async function pullSession() {
     console.log("[Supabase] Pulling session from storage...");
     try {
         const { data, error } = await supabase.storage
@@ -57,7 +58,7 @@ async function pullSession() {
 /**
  * Zip local session folder and upload to Supabase Storage
  */
-async function pushSession() {
+export async function pushSession() {
     if (!fs.existsSync(SESSION_PATH)) {
         console.log("[Supabase] No session folder to push.");
         return;
@@ -94,5 +95,3 @@ async function pushSession() {
         console.error("[Supabase] ❌ Error pushing session:", e.message);
     }
 }
-
-module.exports = { pullSession, pushSession };

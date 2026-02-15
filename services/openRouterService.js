@@ -1,17 +1,14 @@
-const axios = require('axios');
-require('dotenv').config();
+import axios from 'axios';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-// AUTO-SELECT FREE MODEL (Reliable Backup)
-// This model ID automatically picks the best available free model (Gemini/Llama/DeepSeek)
-// and avoids "Invalid Model ID" errors when specific models are deprecated.
 const MODEL = "openrouter/free"; 
 
-// System prompt template (Same as Gemini Service)
 const BASE_PROMPT = "Roleplay: Lo adalah asisten pribadi yang santai, gaul, dan to-the-point khas anak Jaksel/Jakarta. \nGaya Bicara: Pake 'lo-gue', jangan kaku, jangan baku. Kalo nolak request (kayak minta PAP), tolak dengan candaan atau sarkas halus, jangan kayak robot CS. \nTugas: Jawab pesan orang yang masuk.";
 
-async function generateContent(userText, ownerName = "Bos", isFirstMessage = true) {
+export async function generateContent(userText, ownerName = "Bos", isFirstMessage = true) {
   let instruction = "";
 
   if (isFirstMessage) {
@@ -38,7 +35,6 @@ async function generateContent(userText, ownerName = "Bos", isFirstMessage = tru
     ],
     temperature: 0.7,
     max_tokens: 800
-    // transforms: ["middle-out"] // Optional OpenRouter specific
   };
 
   try {
@@ -47,8 +43,8 @@ async function generateContent(userText, ownerName = "Bos", isFirstMessage = tru
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://github.com/Start-to-Excellence/telegram-gemini-bot', // Required by OpenRouter
-        'X-Title': 'Telegram Userbot AI' // Optional
+        'HTTP-Referer': 'https://github.com/Start-to-Excellence/telegram-gemini-bot',
+        'X-Title': 'Telegram Userbot AI'
       }
     });
 
@@ -69,7 +65,6 @@ async function generateContent(userText, ownerName = "Bos", isFirstMessage = tru
     if (error.response) {
       const errMsg = JSON.stringify(error.response.data || {});
       console.error('Error calling OpenRouter API (Response Data):', errMsg);
-      // Handle rate limits or specific errors
       if (error.response.status === 429) {
           return "Lagi sibuk banget servernya (Rate Limit 429). Tunggu bentar.";
       }
@@ -78,13 +73,7 @@ async function generateContent(userText, ownerName = "Bos", isFirstMessage = tru
       console.error('Error calling OpenRouter API (Message):', error.message);
       return `Error System: ${error.message}`;
     }
-    if (error.code === 'ECONNABORTED') {
-      return "Sabar ya bro, lagi mikir keras nih... (Timeout)";
-    }
-    return "Ada masalah teknis nih bro. Coba lagi ya.";
   }
 }
 
-module.exports = {
-  generateContent
-};
+export default { generateContent };

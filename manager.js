@@ -1,21 +1,27 @@
-const Baileys = require('@whiskeysockets/baileys');
-const makeWASocket = Baileys.default || Baileys;
+import Baileys from '@whiskeysockets/baileys';
 const { 
+    default: makeWASocket, 
     useMultiFileAuthState, 
     DisconnectReason, 
     fetchLatestBaileysVersion, 
     makeInMemoryStore, 
     jidDecode 
 } = Baileys;
-const pino = require('pino');
-const express = require('express');
-const qrcode = require('qrcode-terminal');
-const fs = require('fs');
-const path = require('path');
-require('dotenv').config();
 
-const openRouterService = require('./services/openRouterService');
-const { pullSession, pushSession } = require('./services/supabaseService');
+import pino from 'pino';
+import express from 'express';
+import qrcode from 'qrcode-terminal';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+import openRouterService from './services/openRouterService.js';
+import { pullSession, pushSession } from './services/supabaseService.js';
 const aiService = openRouterService;
 
 const app = express();
@@ -50,7 +56,7 @@ const decodeJid = (jid) => {
 
 // --- Connection Logic ---
 async function startBot() {
-    console.log("[System] Initializing Baileys Bot...");
+    console.log("[System] Initializing Baileys Bot (ESM Mode)...");
     
     // 1. Pull Session from Supabase
     await pullSession();
