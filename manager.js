@@ -95,7 +95,7 @@ async function startBot() {
                 const statusCode = error?.output?.statusCode || error?.statusCode;
                 
                 // Reconnect on everything except Logout (401)
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                let shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                 
                 console.log(`[System] Connection Closed!`);
                 console.log(`[System] - Status: ${statusCode}`);
