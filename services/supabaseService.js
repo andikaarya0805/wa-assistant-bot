@@ -34,7 +34,7 @@ export async function pullSession() {
     try {
         const { data, error } = await supabase.storage
             .from(BUCKET_NAME)
-            .download('baileys_session.zip');
+            .download('session.zip');
 
         if (error) {
             console.log("[Supabase] ⚠️ No Baileys session found. Starting fresh.");
@@ -78,7 +78,7 @@ export async function pushSession() {
 
         const { error } = await supabase.storage
             .from(BUCKET_NAME)
-            .upload('baileys_session.zip', buffer, {
+            .upload('session.zip', buffer, {
                 upsert: true,
                 contentType: 'application/zip'
             });
