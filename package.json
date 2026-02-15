@@ -12,13 +12,13 @@
   "license": "ISC",
   "dependencies": {
     "@supabase/supabase-js": "^2.48.1",
+    "@whiskeysockets/baileys": "^6.7.9",
     "adm-zip": "^0.5.16",
     "axios": "^1.13.4",
     "body-parser": "^2.2.2",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "input": "^1.0.1",
-    "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.26.0"
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0"
   }
 }

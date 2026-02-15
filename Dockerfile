@@ -1,42 +1,26 @@
-# Dockerfile for Koyeb Deployment
+# Gunakan Node.js LTS Slim biar enteng
 FROM node:20-slim
 
-# Install dependencies for Puppeteer/Chrome
+# Install dependencies yang dibutuhin buat Node (tanpa Chrome)
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
-    procps \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libxkbcommon0 \
-    libpango-1.0-0 \
-    libxshmfence1 \
-    --no-install-recommends \
-    && apt-get clean \
+    python3 \
+    make \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Google Chrome
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list \
-    && apt-get update && apt-get install -y google-chrome-stable --no-install-recommends \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Copy package files
 COPY package*.json ./
+
+# Install dependencies (Baileys gak butuh Chrome)
 RUN npm install
 
+# Copy source code (Exclude by .dockerignore)
 COPY . .
 
-# Expose health check port
+# Expose port buat health check Koyeb
 EXPOSE 8000
 
+# Jalankan bot
 CMD ["npm", "start"]
