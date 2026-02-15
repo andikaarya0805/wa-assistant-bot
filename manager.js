@@ -112,14 +112,21 @@ async function startBot() {
             } else if (connection === 'open') {
                 isConnecting = false;
                 console.log('🚀 WhatsApp Bot is Ready! (Baileys Mode)');
-                // Sync to Supabase after 10s of being ready
-                setTimeout(async () => {
-                    await pushSession();
-                }, 10000);
+                // Sync session to Supabase immediately
+                await pushSession();
             }
         });
 
-        sock.ev.on('creds.update', saveCreds);
+        // Debounced Creds Update to avoid spamming Supabase
+        let credsTimeout;
+        sock.ev.on('creds.update', async () => {
+            await saveCreds();
+            clearTimeout(credsTimeout);
+            credsTimeout = setTimeout(async () => {
+                console.log("[System] Periodic session sync to Supabase...");
+                await pushSession();
+            }, 30000); // 30 seconds debounce
+        });
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
