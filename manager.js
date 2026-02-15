@@ -255,25 +255,33 @@ async function processQueue(userObj) {
 
 (async () => {
     let retries = 3;
+    const lockPath = path.join(SESSION_PATH, 'session/SingletonLock');
+    
     while (retries > 0) {
         try {
+            // Hapus lock file sisa crash sebelumnya biar gak "Browser already running"
+            if (fs.existsSync(lockPath)) {
+                try { fs.unlinkSync(lockPath); } catch (e) {}
+            }
+
             console.log(`[System] Initializing bot (Retries left: ${retries})...`);
-            // 1. Ambil session dari Supabase dulu
             await pullSession();
 
-            // 2. Start WhatsApp Client
             console.log("[System] Launching browser...");
             await client.initialize();
             console.log("[System] Client initialize called.");
-            break; // Sukses, keluar dari loop
+            break; 
         } catch (err) {
             retries--;
             console.error(`[Fatal] Init Error (Remaining: ${retries}):`, err.message);
+            
+            try { await client.destroy(); } catch (e) {} // Paksa tutup sisa proses
+
             if (retries > 0) {
-                console.log("[System] Retrying in 10 seconds...");
-                await new Promise(res => setTimeout(res, 10000));
+                console.log("[System] Waiting 20 seconds for RAM to settle...");
+                await new Promise(res => setTimeout(res, 20000));
             } else {
-                console.error("[Fatal] All retries failed. Bot stopping.");
+                console.error("[Fatal] All retries failed. Spek RAM Koyeb Free gak kuat bro.");
             }
         }
     }
