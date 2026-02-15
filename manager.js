@@ -6,12 +6,12 @@ const {
 } = require('whatsapp-web.js');
 const geminiService = require('./services/geminiService');
 const openRouterService = require('./services/openRouterService');
-const { pushSession } = require('./services/supabaseService');
+const { pullSession, pushSession } = require('./services/supabaseService');
 const aiService = openRouterService;
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8000;
 
 // --- Process Monitoring ---
 process.on('uncaughtException', (err) => console.error('CRASH:', err));
@@ -199,7 +199,13 @@ async function processQueue(userObj) {
     userObj.isProcessingQueue = false;
 }
 
-client.initialize();
+(async () => {
+    // 1. Ambil session dari Supabase dulu
+    await pullSession();
+
+    // 2. Start WhatsApp Client
+    client.initialize();
+})();
 
 app.get('/health', (req, res) => res.json({
     status: 'alive'

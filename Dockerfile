@@ -36,7 +36,7 @@ RUN npm install
 
 COPY . .
 
-# Expone health check port
-EXPOSE 3001
+# Expose health check port
+EXPOSE 8000
 
 CMD ["npm", "start"]
