@@ -75,7 +75,7 @@ async function pushSession() {
         
         fs.mkdirSync(TEMP_SYNC_PATH, { recursive: true });
         
-        // List folder yang mau di-skip total (SANGAT agresif buat hemat storage)
+        // List folder yang mau di-skip total (Skip cache & media, tapi JANGAN skip IndexedDB/Local Storage)
         const SKIP_FOLDERS = [
             'Cache', 'Code Cache', 'GPUCache', 'Service Worker', 
             'blob_storage', 'databases', 'VideoDecodeStats', 
@@ -83,7 +83,8 @@ async function pushSession() {
             'File System', 'Session Storage', 'Previews',
             'WebStorage', 'Sync Data', 'Sessions', 'Crashpad',
             'OptimizationGuidePredictionModels', 'CacheStorage',
-            'Storage', 'Persistent', 'IndexedDB', 'Local Extension Settings'
+            'Storage', 'Persistent', 'Local Extension Settings',
+            'MediaFoundationWidevineUtils', 'hyphen-data'
         ];
 
         const copyFiles = (src, dest) => {
@@ -96,18 +97,18 @@ async function pushSession() {
                 // Skip folders in list
                 if (SKIP_FOLDERS.includes(file)) continue;
                 
-                // Skip generic heavy patterns
+                // Skip generic heavy patterns (specifically cache and logs)
                 const name = file.toLowerCase();
-                if (name.includes('cache') || name.includes('logs') || name.includes('tmp')) continue;
+                if (name.includes('cache') && !name.includes('storage')) continue; 
+                if (name === 'logs' || name.includes('tmp')) continue;
 
                 const stat = fs.statSync(srcFile);
                 if (stat.isDirectory()) {
                     fs.mkdirSync(destFile, { recursive: true });
                     copyFiles(srcFile, destFile);
                 } else {
-                    // Hanya izinkan file essensial buat login (biasanya file kecil di Local Storage/root)
-                    // Skip data database .ldb, .log, .blob yang bikin gendut
-                    const FORBIDDEN_EXT = ['.ldb', '.log', '.blob', '.tmp', '.bak', '.old', '.db-journal'];
+                    // JANGAN skip .ldb karena itu data session di IndexedDB
+                    const FORBIDDEN_EXT = ['.log', '.blob', '.tmp', '.bak', '.old', '.db-journal'];
                     if (FORBIDDEN_EXT.some(ext => name.endsWith(ext)) || name === 'log' || name === 'log.old') {
                         continue;
                     }
