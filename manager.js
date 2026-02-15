@@ -4,7 +4,6 @@ const {
     useMultiFileAuthState, 
     DisconnectReason, 
     fetchLatestBaileysVersion, 
-    makeInMemoryStore, 
     jidDecode 
 } = Baileys;
 
@@ -32,7 +31,6 @@ const SESSION_PATH = './baileys_auth';
 const users = {};
 const cooldowns = new Map();
 const errorSilence = new Map();
-const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) });
 
 const getUser = (id) => {
     if (!users[id]) users[id] = {
@@ -72,8 +70,6 @@ async function startBot() {
         browser: [process.env.OWNER_NAME || "𝚍𝚞𝚖𝚙𝚒𝚢𝚎𝚢", "Safari", "3.0"],
         markOnlineOnConnect: true
     });
-
-    store.bind(sock.ev);
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
