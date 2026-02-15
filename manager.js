@@ -58,13 +58,14 @@ const client = new Client({
             '--disable-default-apps',
             '--mute-audio',
             '--hide-scrollbars',
-            '--js-flags="--max-old-space-size=256"' // Batasi RAM JS biar gak crash di Koyeb
+            '--disable-features=IsolateOrigins,site-per-process', // Hemat RAM signifikan
+            '--js-flags=--max-old-space-size=256' // Tanpa kutip ganda biar aman di shell
         ],
-        headless: true, // Pastikan true buat server
-        timeout: 60000 // Kasih waktu lebih lama (1 menit)
+        headless: true,
+        timeout: 90000 // Naikkan ke 90 detik
     },
-    authTimeoutMs: 60000, // Timeout auth lebih lama
-    qrMaxRetries: 5
+    authTimeoutMs: 90000,
+    qrMaxRetries: 10
 });
 
 // Event handling buat deteksi crash
