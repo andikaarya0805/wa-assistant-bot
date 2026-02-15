@@ -5,7 +5,9 @@ const {
     LocalAuth
 } = require('whatsapp-web.js');
 const geminiService = require('./services/geminiService');
-const aiService = geminiService;
+const openRouterService = require('./services/openRouterService');
+const { pushSession } = require('./services/supabaseService');
+const aiService = openRouterService;
 require('dotenv').config();
 
 const app = express();
@@ -20,10 +22,16 @@ const fs = require('fs');
 // Helper: Find Local Browser (Chrome/Edge) for Windows
 const getLocalBrowserPath = () => {
     const paths = [
+        // Windows
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+        // Linux / Docker
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser'
     ];
     for (const path of paths) {
         if (fs.existsSync(path)) return path;
@@ -49,8 +57,10 @@ client.on('qr', (qr) => {
     });
 });
 
-client.on('ready', () => {
+client.on('ready', async () => {
     console.log('✅ WhatsApp Bot Ready!');
+    // Sync session to Supabase
+    await pushSession();
 });
 
 // In-Memory Storage
