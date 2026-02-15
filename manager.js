@@ -12,7 +12,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-dotenv.config();
+import NodeCache from 'node-cache';
+const msgRetryCounterCache = new NodeCache();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,7 +76,8 @@ async function startBot() {
             browser: [process.env.OWNER_NAME || "𝚍𝚞𝚖𝚙𝚒𝚢𝚎𝚢", "Chrome", "20.0.04"],
             markOnlineOnConnect: true,
             connectTimeoutMs: 60000,
-            defaultQueryTimeoutMs: 0
+            defaultQueryTimeoutMs: 0,
+            msgRetryCounterCache
         });
 
         sock.ev.on('connection.update', async (update) => {
