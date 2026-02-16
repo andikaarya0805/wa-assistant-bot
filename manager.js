@@ -99,16 +99,20 @@ async function startBot() {
                 // Reconnect on everything except Logout (401)
                 let shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                 
+                // Special case for 515: Always reconnect without clearing session
+                if (statusCode === 515) shouldReconnect = true;
+
                 console.log(`[System] Connection Closed!`);
                 console.log(`[System] - Status: ${statusCode}`);
                 console.log(`[System] - Message: ${error?.message}`);
                 console.log(`[System] - Reconnect: ${shouldReconnect}`);
 
                 // Handle Logout (401) or Conflict (440) or Restart Required (515)
+                // Handle Logout (401) or Conflict (440)
+                // 515 is "Stream Errored" (restart required), NOT logic for deletion.
                 if (
                     statusCode === DisconnectReason.loggedOut || 
-                    statusCode === 440 || 
-                    statusCode === 515
+                    statusCode === 440
                 ) {
                     console.log(`[System] Critical Error (${statusCode}). Clearing session to force fresh login...`);
                     if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });

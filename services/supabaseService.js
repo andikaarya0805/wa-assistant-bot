@@ -77,6 +77,7 @@ export async function pushSession() {
         // Baileys session is just small JSON files, no need to filter like Chrome
         zip.addLocalFolder(SESSION_PATH);
         const buffer = zip.toBuffer();
+        console.log(`[Supabase] Buffer size to upload: ${buffer.length} bytes`);
         
         // Safety: Don't upload empty sessions (22 bytes = empty zip)
         if (buffer.length < 100) {
