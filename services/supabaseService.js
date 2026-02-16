@@ -78,6 +78,12 @@ export async function pushSession() {
         zip.addLocalFolder(SESSION_PATH);
         const buffer = zip.toBuffer();
         
+        // Safety: Don't upload empty sessions (22 bytes = empty zip)
+        if (buffer.length < 100) {
+            console.log(`[Supabase] ⚠️ Session too small (${buffer.length} bytes). Skipping upload to prevent corruption.`);
+            return;
+        }
+
         console.log(`[Supabase] Zip size: ${(buffer.length / 1024).toFixed(2)} KB`);
 
         const { error } = await supabase.storage

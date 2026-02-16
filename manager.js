@@ -73,9 +73,9 @@ async function startBot() {
             logger: pino({ level: 'silent' }),
             printQRInTerminal: false,
             auth: state,
-            browser: [process.env.OWNER_NAME || "𝚍𝚞𝚖𝚙𝚒𝚢𝚎𝚢", "Chrome", "20.0.04"],
+            browser: ["Mac OS", "Chrome", "121.0.6167.139"],
             markOnlineOnConnect: true,
-            connectTimeoutMs: 60000,
+            connectTimeoutMs: 120000,
             defaultQueryTimeoutMs: 0,
             msgRetryCounterCache
         });
