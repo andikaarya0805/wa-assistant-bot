@@ -18,9 +18,9 @@ const msgRetryCounterCache = new NodeCache();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import openRouterService from './services/openRouterService.js';
+import geminiService from './services/geminiService.js';
 import { pullSession, pushSession, deleteSession } from './services/supabaseService.js';
-const aiService = openRouterService;
+const aiService = geminiService;
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -211,7 +211,7 @@ async function startBot(startFresh = false) {
         const isFirstMessage = !userObj.interactedUsers.has(senderNumber);
 
         try {
-            const reply = await aiService.generateContent(body, ownerName, isFirstMessage);
+            const reply = await aiService.generateContent(body, [], ownerName, isFirstMessage);
             if (isFirstMessage) userObj.interactedUsers.add(senderNumber);
             await sock.sendMessage(senderJid, { text: reply }, { quoted: msg });
         } catch (e) {
