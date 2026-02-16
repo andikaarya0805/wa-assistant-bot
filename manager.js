@@ -188,6 +188,21 @@ async function startBot(startFresh = false) {
                 }
                 return;
             }
+
+            if (cmd === '!nuke') {
+                console.log(`>> NUKE COMMAND RECEIVED. Wiping session...`);
+                try {
+                    await sock.sendMessage(senderJid, { text: '☢️ *NUKE INITIATED*. Menghapus sesi dan restart...' }, { quoted: msg });
+                } catch (e) { console.error("Failed to send NUKE msg:", e); }
+                
+                await deleteSession();
+                try {
+                    if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
+                } catch (e) { console.error("Failed to delete local session:", e); }
+                
+                console.log(`>> Session wiped. Restarting...`);
+                process.exit(0); // Force restart to generate new session
+            }
         }
 
         // --- AFK Response Logic ---
