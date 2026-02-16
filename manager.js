@@ -54,7 +54,7 @@ const decodeJid = (jid) => {
 // --- Connection Logic ---
 let isConnecting = false;
 
-async function startBot() {
+async function startBot(startFresh = false) {
     if (isConnecting) return;
     isConnecting = true;
 
@@ -62,8 +62,12 @@ async function startBot() {
     let hasQR = false;
     
     try {
-        // 1. Pull Session from Supabase
-        await pullSession();
+        // 1. Pull Session from Supabase (only if NOT forcing fresh start)
+        if (!startFresh) {
+            await pullSession();
+        } else {
+            console.log("[System] Forcing fresh start (skipping session pull)...");
+        }
 
         const { state, saveCreds } = await useMultiFileAuthState(SESSION_PATH);
         const { version } = await fetchLatestBaileysVersion();
@@ -117,12 +121,15 @@ async function startBot() {
                     console.log(`[System] Critical Error (${statusCode}). Clearing session to force fresh login...`);
                     if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
                     await deleteSession(); // Clear from Supabase too
-                    shouldReconnect = true; // Force reconnect after clearing
+                    
+                    console.log("[System] Restarting in fresh mode in 5 seconds...");
+                    setTimeout(() => startBot(true), 5000); // Force fresh start
+                    return;
                 }
 
                 if (shouldReconnect) {
                     console.log("[System] Reconnecting in 5 seconds...");
-                    setTimeout(() => startBot(), 5000);
+                    setTimeout(() => startBot(false), 5000);
                 }
             } else if (connection === 'open') {
                 isConnecting = false;
