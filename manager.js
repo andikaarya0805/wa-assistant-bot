@@ -162,15 +162,23 @@ async function startBot() {
         if (isMe) {
             if (cmd === '!afk') {
                 userObj.isAfk = true;
-                console.log(">> AFK Mode Activated");
-                await sock.sendMessage(senderJid, { text: '🔇 **AFK Mode ON**. Bot bakal bales chat otomatis.' });
+                console.log(`>> AFK Mode Activated`);
+                try {
+                    await sock.sendMessage(senderJid, { text: '🔇 *AFK Mode ON*. Bot bakal bales chat otomatis.' }, { quoted: msg });
+                } catch (e) {
+                    console.error("Failed to send AFK ON message:", e);
+                }
                 return;
             }
             if (cmd === '!back') {
                 userObj.isAfk = false;
                 userObj.interactedUsers.clear();
-                console.log(">> AFK Mode Deactivated");
-                await sock.sendMessage(senderJid, { text: '🔊 **AFK Mode OFF**. Bot berhenti bales chat.' });
+                console.log(`>> AFK Mode Deactivated`);
+                try {
+                    await sock.sendMessage(senderJid, { text: '🔊 *AFK Mode OFF*. Bot berhenti bales chat.' }, { quoted: msg });
+                } catch (e) {
+                    console.error("Failed to send AFK OFF message:", e);
+                }
                 return;
             }
         }
