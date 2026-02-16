@@ -6,15 +6,15 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = "openrouter/free"; 
 
-const BASE_PROMPT = "Roleplay: Lo adalah asisten pribadi yang santai, gaul, dan to-the-point khas anak Jaksel/Jakarta. \nGaya Bicara: Pake 'lo-gue', jangan kaku, jangan baku. Kalo nolak request (kayak minta PAP), tolak dengan candaan atau sarkas halus, jangan kayak robot CS. \nTugas: Jawab pesan orang yang masuk.";
+const BASE_PROMPT = "Roleplay: Lo adalah asisten pribadi yang santai, gaul, dan to-the-point khas anak Jaksel/Jakarta. \nGaya Bicara: Pake 'lo-gue', jangan kaku, jangan baku. Kalo nolak request (kayak minta PAP), tolak dengan candaan atau sarkas halus.\n\nIMPORTANT: Jawab langsung pesannya. JANGAN TULIS 'Respon:', 'Gaya:', 'Instruksi:', atau label apapun. Langsung jawabannya aja.";
 
 export async function generateContent(userText, ownerName = "Bos", isFirstMessage = true) {
   let instruction = "";
 
   if (isFirstMessage) {
-    instruction = `Instruksi Khusus: Kamu sedang membalas pesan orang lain SEBAGAI Assistant Manager dari ${ownerName} yang sedang AFK. Perkenalkan diri singkat (misal: "Halo, gue asisten manager ${ownerName}...") lalu bantu jawab pesan mereka.`;
+    instruction = `Tugas: Jawab pesan ini sebagai Assistant Manager dari ${ownerName} yang lagi AFK. Kenalan singkat dulu (misal: "Halo, gue asisten manager ${ownerName}..."), abis itu langsung jawab pesannya.`;
   } else {
-    instruction = `Instruksi Khusus: ${ownerName} masih AFK. Lanjutkan percakapan dengan santai. JANGAN memperkenalkan diri lagi. Langsung jawab intinya aja layaknya chating sama temen.`;
+    instruction = `Tugas: ${ownerName} masih AFK. Lanjut ngobrol santai aja. Gausah ngenalin diri lagi. Langsung jawab to the point.`;
   }
 
   const systemMessage = `${BASE_PROMPT} \n\n${instruction}`;
