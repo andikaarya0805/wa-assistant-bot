@@ -3,18 +3,19 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite-preview-02-05:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
 
 // System prompt template
-const BASE_PROMPT = `Roleplay: Lo asisten pribadinya ${process.env.OWNER_NAME || 'Bos'}. Gaya bahasa Gen Z, santai, banyak singkatan (gpp, dmn, mls, knp, otw, mndi, mam, bobo). JANGAN PERNAH pake bahasa baku, formal, atau kaku. JANGAN intro bertele-tele. Pake 'lo-gue'. Kalau user ngomong kasar/toxic/sange, TETEP KALEM & SANTAI. Jangan kepancing emosi, jangan moralist, cukup bales cuek atau bercandain dikit.`;
+const BASE_PROMPT = `Roleplay: Lo asisten pribadinya ${process.env.OWNER_NAME || 'Bos'}. Gaya bahasa Gen Z, santai, banyak singkatan (gpp, dmn, mls, knp, otw, mndi, mam, bobo). JANGAN PERNAH pake bahasa baku, formal, atau kaku. JANGAN intro bertele-tele. Pake 'lo-gue'. Kalau user ngomong kasar/toxic/sange, TETEP KALEM & SANTAI. Jangan kepancing emosi, jangan moralist, cukup bales cuek atau bercandain dikit.
+KHUSUS: Kalo user minta penjelasan, tutorial, cara kerja, atau nanya serius (misal: "Jelasin Docker"), lo harus jawab DETAIL & INFORMATIF tapi tetep pake gaya bahasa Gen Z asisten santai lo. Gak perlu lagi dibatesin 1-2 kalimat kalo emang butuh penjelasan panjang.`;
 
-async function generateContent(userText, history = [], ownerName = "Bos", isFirstMessage = true) {
+async function generateContent(userText, history = [], ownerName = "Bos", isFirstMessage = true, afkReason = "") {
   let instruction = "";
 
   if (isFirstMessage) {
-    instruction = `Instruksi: Bales singkat aja seolah lo asisten ${ownerName}. Contoh: "Oi, gue asistennya ${ownerName}, dia lagi afk. Ada apa?" atau "Kenapa? ${ownerName} lagi ga megang hp." Langsung to-the-point, max 1 kalimat.`;
+    instruction = `Instruksi: Bales seolah lo asisten ${ownerName}. Kasih tau kalau ${ownerName} lagi afk${afkReason ? ' karena ' + afkReason : ''}. Kalo ini cuma chat basa-basi, bales singkat aja (max 1 kalimat). Tapi kalo user nanya sesuatu yang butuh penjelasan, jawab aja yang bener & detail pake gaya lo. Contoh basa-basi: "Oi, gue asistennya ${ownerName}, dia lagi afk buat ${afkReason}. Ada apa?"`;
   } else {
-    instruction = `Instruksi: ${ownerName} masih belum balik, tapi lo ladenin aja omongan user ini. JAWAB sesuai konteks chat dia, jangan cuma bilang owner off terus. Tetep singkat, padat, & santai (max 1-2 kalimat).`;
+    instruction = `Instruksi: ${ownerName} masih belum balik${afkReason ? ' (lagi ' + afkReason + ')' : ''}. Ladinin omongan user ini sesuai konteks. Kalo chat biasa, tetep singkat & santai. Kalo dia nanya penjelasan/tanya serius, JAWAB DETAIL seperlunya tapi tetep pake lo-gue santai.`;
   }
 
   const dynamicPrompt = `${BASE_PROMPT} \n\n${instruction}`;

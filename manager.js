@@ -34,6 +34,9 @@ const errorSilence = new Map();
 const getUser = (id) => {
     if (!users[id]) users[id] = {
         isAfk: false,
+        afkReason: "",
+        history: [],
+        excludeList: new Set(),
         interactedUsers: new Set()
     };
     return users[id];
@@ -167,11 +170,14 @@ async function startBot(startFresh = false) {
         // --- Commands (Owner only) ---
         const cmd = body.trim().toLowerCase();
         if (isMe) {
-            if (cmd === '!afk') {
+            if (cmd.startsWith('!afk')) {
+                const reason = body.slice(4).trim();
                 userObj.isAfk = true;
-                console.log(`>> AFK Mode Activated`);
+                userObj.afkReason = reason || "";
+                console.log(`>> AFK Mode Activated${reason ? ' for: ' + reason : ''}`);
                 try {
-                    await sock.sendMessage(senderJid, { text: '🔇 *AFK Mode ON*. Bot bakal bales chat otomatis.' }, { quoted: msg });
+                    const reply = `🔇 *AFK Mode ON*.${reason ? '\nKeperluan: ' + reason : ''}\nBot bakal bales chat otomatis.`;
+                    await sock.sendMessage(senderJid, { text: reply }, { quoted: msg });
                 } catch (e) {
                     console.error("Failed to send AFK ON message:", e);
                 }
@@ -179,6 +185,7 @@ async function startBot(startFresh = false) {
             }
             if (cmd === '!back') {
                 userObj.isAfk = false;
+                userObj.afkReason = "";
                 userObj.interactedUsers.clear();
                 console.log(`>> AFK Mode Deactivated`);
                 try {
@@ -203,16 +210,50 @@ async function startBot(startFresh = false) {
                 console.log(`>> Session wiped. Restarting...`);
                 process.exit(0); // Force restart to generate new session
             }
+
+            if (cmd.startsWith('!block')) {
+                const target = body.slice(6).trim();
+                if (!target) return sock.sendMessage(senderJid, { text: '⚠️ Kasih nomornya dong. Contoh: `!block 628123456789`' }, { quoted: msg });
+                const targetJid = target.includes('@') ? target : `${target}@s.whatsapp.net`;
+                userObj.excludeList.add(targetJid);
+                console.log(`>> Blocked: ${targetJid}`);
+                return sock.sendMessage(senderJid, { text: `✅ Berhasil mengecualikan @${target.split('@')[0]} dari bot.`, mentions: [targetJid] }, { quoted: msg });
+            }
+
+            if (cmd.startsWith('!unblock')) {
+                const target = body.slice(8).trim();
+                if (!target) return sock.sendMessage(senderJid, { text: '⚠️ Kasih nomornya dong.' }, { quoted: msg });
+                const targetJid = target.includes('@') ? target : `${target}@s.whatsapp.net`;
+                userObj.excludeList.delete(targetJid);
+                console.log(`>> Unblocked: ${targetJid}`);
+                return sock.sendMessage(senderJid, { text: `✅ @${target.split('@')[0]} sudah tidak lagi dikecualikan.`, mentions: [targetJid] }, { quoted: msg });
+            }
+
+            if (cmd === '!listblock') {
+                if (userObj.excludeList.size === 0) return sock.sendMessage(senderJid, { text: '📭 Daftar pengecualian kosong.' }, { quoted: msg });
+                let text = '🚫 *Daftar Pengecualian:*\n\n';
+                userObj.excludeList.forEach(num => text += `- @${num.split('@')[0]}\n`);
+                return sock.sendMessage(senderJid, { text, mentions: Array.from(userObj.excludeList) }, { quoted: msg });
+            }
         }
 
         // --- AFK Response Logic ---
         if (!userObj.isAfk || isMe) return;
+
+        // Check if sender is in Exclusion List
+        if (userObj.excludeList.has(senderJid)) {
+            console.log(`[Skipped] Sender ${senderJid} is in exclusion list.`);
+            return;
+        }
 
         // Bot behavior: Reply to DM or Tagged in Group
         const botId = decodeJid(sock.user.id);
         const isTagged = body.includes(`@${botId.split('@')[0]}`);
 
         if (isGroup && !isTagged) return;
+
+        // Get user-specific data (for history)
+        const chatObj = getUser(senderJid);
 
         // Rate Limiting & Error Silence
         const now = Date.now();
@@ -226,8 +267,15 @@ async function startBot(startFresh = false) {
         const isFirstMessage = !userObj.interactedUsers.has(senderNumber);
 
         try {
-            const reply = await aiService.generateContent(body, [], ownerName, isFirstMessage);
+            const reply = await aiService.generateContent(body, chatObj.history, ownerName, isFirstMessage, userObj.afkReason);
+            
             if (isFirstMessage) userObj.interactedUsers.add(senderNumber);
+
+            // Update History (Max 10 messages)
+            chatObj.history.push({ role: "user", parts: [{ text: body }] });
+            chatObj.history.push({ role: "model", parts: [{ text: reply }] });
+            if (chatObj.history.length > 10) chatObj.history = chatObj.history.slice(-10);
+
             await sock.sendMessage(senderJid, { text: reply }, { quoted: msg });
         } catch (e) {
             console.error(`[AI Error]:`, e.message);
