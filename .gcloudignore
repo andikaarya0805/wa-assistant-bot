@@ -1,0 +1,11 @@
+.gcloudignore
+.git
+.gitignore
+node_modules
+.venv
+.wwebjs_auth
+.wwebjs_cache
+baileys_auth
+session.txt
+npm-debug.log
+.env

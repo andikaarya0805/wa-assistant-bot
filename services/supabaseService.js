@@ -6,7 +6,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const supabase = createClient(process.env.DB_URL, process.env.DB_KEY);
-const SESSION_PATH = './baileys_auth';
+const SESSION_PATH = process.env.IS_CLOUD ? '/tmp/.wwebjs_auth' : './.wwebjs_auth';
+const SESSION_ZIP = 'baileys_auth.zip'; // Kept for storage bucket consistency
 
 const BUCKET_NAME = 'whatsapp-sessions';
 
@@ -79,8 +80,14 @@ export async function pushSession() {
         const buffer = zip.toBuffer();
         console.log(`[Supabase] Buffer size to upload: ${buffer.length} bytes`);
         
-        // Safety: Don't upload empty sessions (22 bytes = empty zip)
-        if (buffer.length < 100) {
+        // Safety: Don't upload if it's not a real session (verify creds.json exist)
+        const credsFile = path.join(SESSION_PATH, 'creds.json');
+        if (!fs.existsSync(credsFile)) {
+            console.log(`[Supabase] ⚠️ creds.json not found. Skipping upload to prevent cleaning Supabase.`);
+            return;
+        }
+
+        if (buffer.length < 500) {
             console.log(`[Supabase] ⚠️ Session too small (${buffer.length} bytes). Skipping upload to prevent corruption.`);
             return;
         }

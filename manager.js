@@ -1,301 +1,251 @@
-import makeWASocket, { 
-    useMultiFileAuthState, 
-    DisconnectReason, 
-    fetchLatestBaileysVersion, 
-    jidDecode 
-} from '@whiskeysockets/baileys';
-
+import { webcrypto } from 'node:crypto';
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
+import 'dotenv/config';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import pino from 'pino';
-import express from 'express';
-import qrcode from 'qrcode-terminal';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
 import NodeCache from 'node-cache';
+import http from 'http';
+import geminiService from './services/geminiService.js';
+import qrcodeLogger from 'qrcode-terminal';
+import fs from 'fs';
+
+const port = process.env.PORT || 3001;
+const sessionDir = 'baileys_auth';
+const ownerName = process.env.OWNER_NAME || 'dika';
+
 const msgRetryCounterCache = new NodeCache();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+let messageQueue = [];
+let isProcessingQueue = false;
 
-import geminiService from './services/geminiService.js';
-import { pullSession, pushSession, deleteSession } from './services/supabaseService.js';
-const aiService = geminiService;
+// Global AFK storage
+let globalAfkReason = null;
 
-const app = express();
-const PORT = process.env.PORT || 8000;
-const SESSION_PATH = './baileys_auth';
+async function processQueue(sock) {
+    if (isProcessingQueue || messageQueue.length === 0) return;
+    isProcessingQueue = true;
 
-// --- Data Storage ---
-const users = {};
-const cooldowns = new Map();
-const errorSilence = new Map();
-
-const getUser = (id) => {
-    if (!users[id]) users[id] = {
-        isAfk: false,
-        afkReason: "",
-        history: [],
-        excludeList: new Set(),
-        interactedUsers: new Set()
-    };
-    return users[id];
-};
-
-const userObj = getUser('system'); // Global system state
-
-// --- Helpers ---
-const decodeJid = (jid) => {
-    if (!jid) return jid;
-    if (/:\d+@/gi.test(jid)) {
-        const decode = jidDecode(jid) || {};
-        return decode.user && decode.server && `${decode.user}@${decode.server}` || jid;
-    }
-    return jid;
-};
-
-// --- Connection Logic ---
-let isConnecting = false;
-
-async function startBot(startFresh = false) {
-    if (isConnecting) return;
-    isConnecting = true;
-
-    console.log("[System] Initializing Baileys Bot (ESM Mode)...");
-    let hasQR = false;
-    
-    try {
-        // 1. Pull Session from Supabase (only if NOT forcing fresh start)
-        if (!startFresh) {
-            await pullSession();
-        } else {
-            console.log("[System] Forcing fresh start (skipping session pull)...");
-        }
-
-        const { state, saveCreds } = await useMultiFileAuthState(SESSION_PATH);
-        const { version } = await fetchLatestBaileysVersion();
-
-        const sock = makeWASocket({
-            version,
-            logger: pino({ level: 'silent' }),
-            printQRInTerminal: false,
-            auth: state,
-            browser: ["Mac OS", "Chrome", "121.0.6167.139"],
-            markOnlineOnConnect: true,
-            connectTimeoutMs: 120000,
-            defaultQueryTimeoutMs: 0,
-            msgRetryCounterCache
-        });
-
-        sock.ev.on('connection.update', async (update) => {
-            const { connection, lastDisconnect, qr } = update;
-
-            if (qr && !hasQR) {
-                hasQR = true;
-                console.log("[System] Scan QR Code required...");
-                qrcode.generate(qr, { small: true });
-                const qrLink = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`;
-                console.log(`[Link Alternatif] ${qrLink}`);
-            }
-
-            if (connection === 'close') {
-                isConnecting = false;
-                const error = lastDisconnect?.error;
-                const statusCode = error?.output?.statusCode || error?.statusCode;
-                
-                // Reconnect on everything except Logout (401)
-                let shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-                
-                // Special case for 515: Always reconnect without clearing session
-                if (statusCode === 515) shouldReconnect = true;
-
-                console.log(`[System] Connection Closed!`);
-                console.log(`[System] - Status: ${statusCode}`);
-                console.log(`[System] - Message: ${error?.message}`);
-                console.log(`[System] - Reconnect: ${shouldReconnect}`);
-
-                // Handle Logout (401) or Conflict (440) or Restart Required (515)
-                // Handle Logout (401) or Conflict (440)
-                // 515 is "Stream Errored" (restart required), NOT logic for deletion.
-                if (
-                    statusCode === DisconnectReason.loggedOut || 
-                    statusCode === 440
-                ) {
-                    console.log(`[System] Critical Error (${statusCode}). Clearing session to force fresh login...`);
-                    if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
-                    await deleteSession(); // Clear from Supabase too
-                    
-                    console.log("[System] Restarting in fresh mode in 5 seconds...");
-                    setTimeout(() => startBot(true), 5000); // Force fresh start
-                    return;
-                }
-
-                if (shouldReconnect) {
-                    console.log("[System] Reconnecting in 5 seconds...");
-                    setTimeout(() => startBot(false), 5000);
-                }
-            } else if (connection === 'open') {
-                isConnecting = false;
-                console.log('🚀 WhatsApp Bot is Ready! (Baileys Mode)');
-                // Sync session to Supabase immediately
-                await pushSession();
-            }
-        });
-
-        // Debounced Creds Update to avoid spamming Supabase
-        let credsTimeout;
-        sock.ev.on('creds.update', async () => {
-            await saveCreds();
-            clearTimeout(credsTimeout);
-            credsTimeout = setTimeout(async () => {
-                console.log("[System] Periodic session sync to Supabase...");
-                await pushSession();
-            }, 30000); // 30 seconds debounce
-        });
-
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-        if (type !== 'notify') return;
-        const msg = messages[0];
-        if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
-
-        const senderJid = msg.key.remoteJid;
-        const isMe = msg.key.fromMe;
-        const body = msg.message.conversation || 
-                     msg.message.extendedTextMessage?.text || 
-                     msg.message.imageMessage?.caption || "";
-        
-        const isGroup = senderJid.endsWith('@g.us');
-        const senderNumber = decodeJid(senderJid);
-
-        // --- Commands (Owner only) ---
-        const cmd = body.trim().toLowerCase();
-        if (isMe) {
-            if (cmd.startsWith('!afk')) {
-                const reason = body.slice(4).trim();
-                userObj.isAfk = true;
-                userObj.afkReason = reason || "";
-                console.log(`>> AFK Mode Activated${reason ? ' for: ' + reason : ''}`);
-                try {
-                    const reply = `🔇 *AFK Mode ON*.${reason ? '\nKeperluan: ' + reason : ''}\nBot bakal bales chat otomatis.`;
-                    await sock.sendMessage(senderJid, { text: reply }, { quoted: msg });
-                } catch (e) {
-                    console.error("Failed to send AFK ON message:", e);
-                }
-                return;
-            }
-            if (cmd === '!back') {
-                userObj.isAfk = false;
-                userObj.afkReason = "";
-                userObj.interactedUsers.clear();
-                console.log(`>> AFK Mode Deactivated`);
-                try {
-                    await sock.sendMessage(senderJid, { text: '🔊 *AFK Mode OFF*. Bot berhenti bales chat.' }, { quoted: msg });
-                } catch (e) {
-                    console.error("Failed to send AFK OFF message:", e);
-                }
-                return;
-            }
-
-            if (cmd === '!nuke') {
-                console.log(`>> NUKE COMMAND RECEIVED. Wiping session...`);
-                try {
-                    await sock.sendMessage(senderJid, { text: '☢️ *NUKE INITIATED*. Menghapus sesi dan restart...' }, { quoted: msg });
-                } catch (e) { console.error("Failed to send NUKE msg:", e); }
-                
-                await deleteSession();
-                try {
-                    if (fs.existsSync(SESSION_PATH)) fs.rmSync(SESSION_PATH, { recursive: true, force: true });
-                } catch (e) { console.error("Failed to delete local session:", e); }
-                
-                console.log(`>> Session wiped. Restarting...`);
-                process.exit(0); // Force restart to generate new session
-            }
-
-            if (cmd.startsWith('!block')) {
-                const target = body.slice(6).trim();
-                if (!target) return sock.sendMessage(senderJid, { text: '⚠️ Kasih nomornya dong. Contoh: `!block 628123456789`' }, { quoted: msg });
-                const targetJid = target.includes('@') ? target : `${target}@s.whatsapp.net`;
-                userObj.excludeList.add(targetJid);
-                console.log(`>> Blocked: ${targetJid}`);
-                return sock.sendMessage(senderJid, { text: `✅ Berhasil mengecualikan @${target.split('@')[0]} dari bot.`, mentions: [targetJid] }, { quoted: msg });
-            }
-
-            if (cmd.startsWith('!unblock')) {
-                const target = body.slice(8).trim();
-                if (!target) return sock.sendMessage(senderJid, { text: '⚠️ Kasih nomornya dong.' }, { quoted: msg });
-                const targetJid = target.includes('@') ? target : `${target}@s.whatsapp.net`;
-                userObj.excludeList.delete(targetJid);
-                console.log(`>> Unblocked: ${targetJid}`);
-                return sock.sendMessage(senderJid, { text: `✅ @${target.split('@')[0]} sudah tidak lagi dikecualikan.`, mentions: [targetJid] }, { quoted: msg });
-            }
-
-            if (cmd === '!listblock') {
-                if (userObj.excludeList.size === 0) return sock.sendMessage(senderJid, { text: '📭 Daftar pengecualian kosong.' }, { quoted: msg });
-                let text = '🚫 *Daftar Pengecualian:*\n\n';
-                userObj.excludeList.forEach(num => text += `- @${num.split('@')[0]}\n`);
-                return sock.sendMessage(senderJid, { text, mentions: Array.from(userObj.excludeList) }, { quoted: msg });
-            }
-        }
-
-        // --- AFK Response Logic ---
-        if (!userObj.isAfk || isMe) return;
-
-        // Check if sender is in Exclusion List
-        if (userObj.excludeList.has(senderJid)) {
-            console.log(`[Skipped] Sender ${senderJid} is in exclusion list.`);
-            return;
-        }
-
-        // Bot behavior: Reply to DM or Tagged in Group
-        const botId = decodeJid(sock.user.id);
-        const isTagged = body.includes(`@${botId.split('@')[0]}`);
-
-        if (isGroup && !isTagged) return;
-
-        // Get user-specific data (for history)
-        const chatObj = getUser(senderJid);
-
-        // Rate Limiting & Error Silence
-        const now = Date.now();
-        if (errorSilence.has(senderNumber) && now < errorSilence.get(senderNumber)) return;
-        if (cooldowns.has(senderNumber) && (now - cooldowns.get(senderNumber)) < 5000) return;
-        cooldowns.set(senderNumber, now);
-
-        console.log(`[Userbot] Processing chat from ${senderNumber}: ${body.substring(0, 50)}...`);
-
-        const ownerName = process.env.OWNER_NAME || "𝚍𝚞𝚖𝚙𝚒𝚢𝚎𝚢";
-        const isFirstMessage = !userObj.interactedUsers.has(senderNumber);
+    while (messageQueue.length > 0) {
+        const { remoteJid, messageText, pushName, isGroup } = messageQueue.shift();
 
         try {
-            const reply = await aiService.generateContent(body, chatObj.history, ownerName, isFirstMessage, userObj.afkReason);
+            await sock.readMessages([{ remoteJid, id: 'processing', participant: remoteJid }]);
+            await sock.sendPresenceUpdate('composing', remoteJid);
+
+            const prompt = `Nama pengirim: ${pushName}. Jika kamu membalas, sesuaikan gaya bahasa dengan nama pengirim.\n\nPesan: ${messageText}`;
             
-            if (isFirstMessage) userObj.interactedUsers.add(senderNumber);
+            // Pass correct parameters to Gemini Service
+            const aiResponse = await geminiService.generateContent(
+                prompt, 
+                [], 
+                ownerName, 
+                true, 
+                globalAfkReason || ""
+            );
 
-            // Update History (Max 10 messages)
-            chatObj.history.push({ role: "user", parts: [{ text: body }] });
-            chatObj.history.push({ role: "model", parts: [{ text: reply }] });
-            if (chatObj.history.length > 10) chatObj.history = chatObj.history.slice(-10);
-
-            await sock.sendMessage(senderJid, { text: reply }, { quoted: msg });
-        } catch (e) {
-            console.error(`[AI Error]:`, e.message);
-            if (e.message?.includes('429')) errorSilence.set(senderNumber, now + 60000);
+            await sock.sendMessage(remoteJid, { text: aiResponse });
+            console.log(`[AI Responded] to ${pushName}: ${aiResponse.substring(0, 50)}...`);
+        } catch (error) {
+            console.error('[Error processing message]:', error.message);
+            await sock.sendMessage(remoteJid, { text: 'Maaf, Ustad Roy lagi pusing (error).' });
         }
-        });
+
+        // Delay to prevent spam (3 seconds)
+        await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+
+    isProcessingQueue = false;
+}
+
+if (!fs.existsSync(sessionDir)) {
+    fs.mkdirSync(sessionDir, { recursive: true });
+}
+
+const blocklistFile = 'blocklist.json';
+let blocklist = new Set();
+if (fs.existsSync(blocklistFile)) {
+    try {
+        blocklist = new Set(JSON.parse(fs.readFileSync(blocklistFile, 'utf-8')));
     } catch (e) {
-        isConnecting = false;
-        console.error("[System] startBot Fatal Error:", e.message);
-        setTimeout(() => startBot(), 10000);
+        console.error('Failed to load blocklist:', e.message);
     }
 }
 
-// Start bot
-startBot();
+function saveBlocklist() {
+    fs.writeFileSync(blocklistFile, JSON.stringify([...blocklist]));
+}
 
-// --- Health Check ---
-app.get('/health', (req, res) => res.json({ status: 'alive', mode: 'baileys' }));
-app.listen(PORT, () => console.log(`Health server running on port ${PORT}`));
+async function startBot() {
+    console.log('Starting WhatsApp Baileys Bot...');
 
-// Global Error Handling
-process.on('uncaughtException', (err) => console.error('CRASH:', err));
-process.on('unhandledRejection', (reason) => console.error('REJECTION:', reason));
+    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`Using WA v${version.join('.')}, isLatest: ${isLatest}`);
+
+    const sock = makeWASocket({
+        version,
+        logger: pino({ level: 'silent' }), // Hide noisy logs
+        printQRInTerminal: false, // We handle QR manually for links
+        auth: state,
+        msgRetryCounterCache,
+        generateHighQualityLinkPreview: true,
+        browser: ['Ubuntu', 'Chrome', '20.0.04']
+    });
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect, qr } = update;
+        
+        if (qr) {
+            console.log('\n--- BUKA LINK INI DI BROWSER BUAT SCAN QR ---');
+            console.log(`Pencet CTRL + Klick Link: https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=300x300`);
+            console.log('-------------------------------------------\n');
+        }
+
+        if (connection === 'close') {
+            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log('Connection closed due to', lastDisconnect.error, 'reconnecting:', shouldReconnect);
+            
+            if (shouldReconnect) {
+                setTimeout(startBot, 5000);
+            } else {
+                console.log('You are logged out! Please delete baileys_auth folder and scan again.');
+                process.exit();
+            }
+        } else if (connection === 'open') {
+            console.log('=================================');
+            console.log('✅ WhatsApp Web Client is ready! (Baileys VM Edition)');
+            console.log('=================================');
+        }
+    });
+
+    sock.ev.on('messages.upsert', async (m) => {
+        if (m.type !== 'notify') return;
+        
+        const msg = m.messages[0];
+        if (!msg.message) return;
+
+        const remoteJid = msg.key.remoteJid;
+
+        // Skip if blocked
+        if (blocklist.has(remoteJid) && !msg.key.fromMe) return;
+
+        const pushName = msg.pushName || 'Seseorang';
+        const isGroup = remoteJid.endsWith('@g.us');
+
+        // Extract text depending on message type
+        let messageText = '';
+        if (msg.message.conversation) {
+            messageText = msg.message.conversation;
+        } else if (msg.message.extendedTextMessage) {
+            messageText = msg.message.extendedTextMessage.text;
+        } else if (msg.message.imageMessage?.caption) {
+            messageText = msg.message.imageMessage.caption;
+        }
+        
+        if (!messageText) return;
+
+        // WAJIB PAKE PREFIX (! ATAU .) UNTUK COMMANDS
+        const hasPrefix = messageText.startsWith('!') || messageText.startsWith('.');
+
+        // CEK APAKAH BOT (KITA) DI-TAG DI GRUP
+        const myJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+        const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+        const isMentioned = mentionedJids.includes(myJid);
+
+        // Kalau pesan dari HI (fromMe) tapi GAK ada prefix, abaikan
+        // Ini biar gak terjadi looping kalau bot nge-repost pesan AI-nya sendiri
+        if (msg.key.fromMe && !hasPrefix) return;
+
+        console.log(`\nIncoming [${isGroup ? 'Group' : 'Direct'}]: ${pushName} (${remoteJid})`);
+        console.log(`Content: ${messageText}`);
+
+        // Skip emoji only
+        const emojiRegex = /^[\p{Emoji}\s]+$/u;
+        if (emojiRegex.test(messageText.trim())) {
+            console.log('Skipping emoji only message.');
+            return;
+        }
+
+        // Kalau nggak ada prefix, tetep bisa dibales AI kalo itu Direct Chat atau kalo di-TAG
+        // Tapi kalo di Grup tanpa Tag & tanpa Prefix, abaikan (biar gak spam)
+        if (!hasPrefix && isGroup && !isMentioned) {
+            console.log('Skipping Group message: No prefix and not mentioned.');
+            return;
+        }
+
+        console.log(`[Processing] ${pushName}: ${messageText}`);
+
+        // AFK & Command logic
+        try {
+            // ADMIN ONLY (FROM ME)
+            if (msg.key.fromMe) {
+                if (messageText.startsWith('!block')) {
+                    let target = remoteJid;
+                    const arg = messageText.replace('!block', '').trim();
+                    if (arg) {
+                        target = arg.replace(/[^0-9]/g, '');
+                        if (target.startsWith('0')) target = '62' + target.slice(1);
+                        if (!target.endsWith('@s.whatsapp.net')) target += '@s.whatsapp.net';
+                    }
+                    blocklist.add(target);
+                    saveBlocklist();
+                    await sock.sendMessage(remoteJid, { text: `Target *${target}* berhasil di-block!` });
+                    return;
+                }
+                if (messageText.startsWith('!unblock')) {
+                    let target = remoteJid;
+                    const arg = messageText.replace('!unblock', '').trim();
+                    if (arg) {
+                        target = arg.replace(/[^0-9]/g, '');
+                        if (target.startsWith('0')) target = '62' + target.slice(1);
+                        if (!target.endsWith('@s.whatsapp.net')) target += '@s.whatsapp.net';
+                    }
+                    blocklist.delete(target);
+                    saveBlocklist();
+                    await sock.sendMessage(remoteJid, { text: `Target *${target}* berhasil di-unblock!` });
+                    return;
+                }
+                if (messageText === '!listblock') {
+                    const list = blocklist.size > 0 ? [...blocklist].join('\n') : 'Kosong bro.';
+                    await sock.sendMessage(remoteJid, { text: `Daftar Blocklist:\n${list}` });
+                    return;
+                }
+            }
+
+            if (messageText.startsWith('!afk')) {
+                const reason = messageText.replace('!afk', '').trim() || 'Sedang sibuk/tidak aktif';
+                globalAfkReason = reason;
+                await sock.sendMessage(remoteJid, { text: `bos *${ownerName}* is AFK: ${reason}\n\n_Auto-Reply AI active globally._`});
+                console.log(`[AFK On] globally: ${reason}`);
+                return;
+            }
+            if (messageText === '!back') {
+                if (globalAfkReason) {
+                    globalAfkReason = null;
+                    await sock.sendMessage(remoteJid, { text: `bos *${ownerName}* sudah kembali aktif!`});
+                    console.log(`[AFK Off] globally.`);
+                }
+                return;
+            }
+        } catch (err) {
+            console.error('[Error sending command response]:', err.message);
+        }
+
+        messageQueue.push({ remoteJid, messageText, pushName, isGroup });
+        if (!isProcessingQueue) {
+            processQueue(sock);
+        }
+    });
+}
+
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Gemini WhatsApp Bot (Baileys VM) is running.\n');
+});
+
+server.listen(port, () => {
+    console.log(`[HTTP] Server is running on port ${port}`);
+    startBot();
+});
